@@ -1,2 +1,16 @@
-BD contraseña en supabase->
+# BD contraseña en supabase->
 J4mkd#,dL@JvJ@D
+
+# Correr el servidor con ->
+
+npm run dev.
+
+# borrar las tablas actuales que estén en la base de datos y las crea desde 0 
+siguiendo el archivo schema.prisma. ->
+
+npx prisma db push --force-reset
+
+# Usamos este comando para hacer una prueba enviando datos (simulados) hacia la base de datos
+$body, lo pasamos como una variable, fue el cuerpo del json, al final se convirtió utilizando ConvertTo-Json
+
+>> Invoke-RestMethod -Uri http://localhost:3000/patrones/guardar -Method Post -ContentType "application/json" -Body $body

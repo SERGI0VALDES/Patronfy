@@ -4,8 +4,9 @@ generator cliente {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // --- Modelos de Datos ---
@@ -26,7 +27,6 @@ model Patron {
   categoria        String   // Ej: "Damas", "Caballeros"
   
   // Guardamos las medidas como un objeto JSON 
-  // Ej: { "cintura": 70, "cadera": 95 }
   medidas          Json     
 
   // Relación con el usuario
