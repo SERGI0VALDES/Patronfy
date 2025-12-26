@@ -1,23 +1,24 @@
-// screens/HomeScreen.tsx
 import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
+import { useAuth } from '../context/AuthContext'; 
 import { RootStackParamList } from '../types/navigation';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
-
+  
+  const { user, logout } = useAuth(); 
+  
   return (
     <SafeAreaView style={styles.container}>
-      
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         
-        <Text style={styles.welcomeTitle}>¡Bienvenido a Patronfy!</Text>
+        <Text style={styles.welcomeTitle}>¡Bienvenido, {user?.nombre || 'a Patronfy'}!</Text>
         <Text style={styles.welcomeSubtitle}>
           Crea patrones de costura personalizados en minutos
         </Text>
@@ -38,12 +39,21 @@ const HomeScreen: React.FC = () => {
 
         <TouchableOpacity 
           style={styles.secondaryButton}
-          onPress={() => navigation.navigate('PerfilCliente')}
+          onPress={() => navigation.navigate('MisClientes')}
         >
           <Text style={styles.secondaryButtonText}>Gestión de Clientes</Text>
         </TouchableOpacity>
 
-      </View>
+        
+        <TouchableOpacity 
+      style={styles.logoutButton}
+      onPress={() => navigation.navigate('LogoutAnimation')} // <-- Navegamos a la animación
+      activeOpacity={0.6}
+    >
+      <Text style={styles.logoutButtonText}>Salir de Patronfy</Text>
+    </TouchableOpacity>
+
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -54,7 +64,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -108,6 +118,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  logoutButton: {
+  backgroundColor: '#ffffff',
+  borderWidth: 1.5,
+  borderColor: '#d1d1d1',
+  paddingVertical: 10,
+  paddingHorizontal: 20,
+  borderRadius: 30,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginVertical: 12,
+  elevation: 1,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.1,
+  shadowRadius: 2,
+},
+logoutButtonText: {
+  color: '#2c3e50',
+  fontSize: 15,
+  fontWeight: '500',
+},   
 });
 
 export default HomeScreen;

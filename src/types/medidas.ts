@@ -1,4 +1,4 @@
-// types/measures.ts
+// types/medidas.ts
 export type BodyMeasures = {
   chest: number;
   waist: number;
@@ -7,7 +7,7 @@ export type BodyMeasures = {
   shoulderWidth: number;
   armLength: number;
   neckCircumference: number;
-  // Agrega más medidas según tu documento funcional
+  
 };
 
 export type GarmentType = 'tshirt' | 'pants' | 'dress' | 'skirt';

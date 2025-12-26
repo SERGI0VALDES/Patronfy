@@ -35,4 +35,6 @@ export type RootStackParamList = {
   LoginRegister: undefined;
   SeleccionEntrada: undefined; 
   CameraScreen: undefined;
+  MisClientes: undefined;
+  LogoutAnimation: undefined;
 };

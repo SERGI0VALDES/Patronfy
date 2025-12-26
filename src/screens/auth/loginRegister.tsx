@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -6,9 +6,15 @@ import { useAuth } from '../../context/AuthContext'; // Asegúrate de que la rut
 import api from '../../api/axios'; // Para el registro directo
 import { RootStackParamList } from '../../types/navigation';
 
+// NetInfor para verificar la conexión de internet
+import NetInfo from '@react-native-community/netinfo';
+
 type LoginRegisterNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const LoginRegister: React.FC = () => {
+  // Estado para la conexión a internet
+  const [isConnected, setIsConnected] = useState<boolean | null>(true);
+
   const navigation = useNavigation<LoginRegisterNavigationProp>();
   const { login } = useAuth(); // Usamos la función de nuestro contexto
 
@@ -22,7 +28,7 @@ const LoginRegister: React.FC = () => {
   const [nombre, setNombre] = useState(''); // Añadido para el registro
 
   const handleAuth = async () => {
-    // Validaciones básicas
+    // 1. Validaciones básicas
     if (!email || !password) {
       Alert.alert('Error', 'Por favor llena todos los campos');
       return;
@@ -32,9 +38,9 @@ const LoginRegister: React.FC = () => {
 
     try {
       if (isLogin) {
-        // --- LOGICA DE INICIO DE SESIÓN ---
-        await login(email, password);
-        navigation.navigate('Home');
+        
+        await login(email.trim(), password.trim()); 
+        
       } else {
         // --- LOGICA DE REGISTRO ---
         if (password !== confirmPassword) {
@@ -43,37 +49,24 @@ const LoginRegister: React.FC = () => {
           return;
         }
 
-        // Llamamos directamente a la API de usuarios que creamos en NestJS
         await api.post('/usuarios/registro', {
-          nombre: nombre || 'Usuario de Patronfy', // Podrías añadir un input de nombre
-          correo: email,
+          nombre: nombre || 'Usuario de Patronfy',
+          correo: email.trim(),
           clave: password
         });
 
         Alert.alert('¡Éxito!', 'Cuenta creada. Ahora puedes iniciar sesión.');
-        setIsLogin(true); // Lo mandamos al login para que entre oficialmente
+        setIsLogin(true);
       }
     } catch (error: any) {
-      // LOG DETALLADO PARA DEPURAR
-      console.log("--- ERROR EN LOGIN ---");
-      if (error.response) {
-        // El servidor respondió con algo (401, 404, 500)
-        console.log("Datos del error:", error.response.data); 
-        console.log("Status:", error.response.status);
-        
-        const mensaje = error.response.data.message || 'Error de autenticación';
-        Alert.alert('Error', Array.isArray(mensaje) ? mensaje.join(', ') : mensaje);
-      } else if (error.request) {
-        // La petición se hizo pero no hubo respuesta
-        console.log("Error de red/petición:", error.request);
-        Alert.alert('Error', 'No se pudo conectar con el servidor');
-      } else {
-        console.log("Error inesperado:", error.message);
-      }
+      console.log("--- ERROR EN AUTH ---");
+      // ... (tu manejo de errores actual está perfecto)
+      const mensaje = error.response?.data?.message || 'Error de autenticación';
+      Alert.alert('Error', Array.isArray(mensaje) ? mensaje.join(', ') : mensaje);
     } finally {
       setLoading(false);
     }
-    await login(email.trim(), password.trim());
+    
   };
 
   const toggleMode = () => {
@@ -83,12 +76,33 @@ const LoginRegister: React.FC = () => {
     setConfirmPassword('');
   };
 
+  // Monitorear el estado de la conexión a internet
+  useEffect(() => {
+    // Suscribirse a los cambios de conexión
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(state.isConnected);
+    });
+
+    return () => unsubscribe(); // Limpiar al salir
+  }, []);
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.statusBadge}>
+        <View style={[
+          styles.dot, 
+          { backgroundColor: isConnected ? '#4CD964' : '#FF3B30' } // Verde si hay, Rojo si no
+        ]} />
+        <Text style={styles.statusText}>
+          {isConnected ? 'En línea' : 'Sin conexión'}
+        </Text>
+      </View>
+
       <View style={styles.content}>
+
         <Text style={styles.title}>
           {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
         </Text>
@@ -158,12 +172,35 @@ const LoginRegister: React.FC = () => {
             </Text>
           </TouchableOpacity>
         </View>
+
       </View>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 50, // Ajusta según tu diseño
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  statusText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   container: {
     flex: 1,
     backgroundColor: '#1a1a1a',

@@ -10,10 +10,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey: 'Patronfy_Secret_2025', // DEBE ser la misma que en AuthModule
     });
-  }
+  } 
 
   async validate(payload: any) {
     // Lo que devuelvas aquí se guardará en request.user
-    return { userId: payload.sub, email: payload.email };
+    console.log('Token decodificado con éxito:', payload);
+    return { id: payload.sub, email: payload.email };
   }
 }

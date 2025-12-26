@@ -1,34 +1,33 @@
+// src/patrones/patrones.controller.ts
 import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
-import { PatronesServicio } from './patrones.service';
-import { AuthGuard } from '@nestjs/passport';
+import { PatronesService } from './patrones.service';
+import { CreatePatronDto } from './dto/create-patrone.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Guard de JWT
 
-
-@Controller('patrones') // La ruta será http://localhost:3000/patrones
+@Controller('patrones')
 export class PatronesController {
-  constructor(private readonly patronesServicio: PatronesServicio) {}
+  constructor(private readonly patronesService: PatronesService) {}
 
-  // Ruta protegida para guardar un nuevo patrón
-  @UseGuards(AuthGuard('jwt')) // <-- ¡EL CANDADO!
+  // Ruta protegida
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  async crear(@Request() req, @Body() createPatronDto: CreatePatronDto) {
 
-  @Post('guardar')
-  async guardar(@Body() datos: any, @Request() req) {
-    // Ahora el usuario ID viene dentro del TOKEN, no necesitas enviarlo en el body
-    const usuarioId = req.user.userId;
-    return this.patronesServicio.crearPatron({ ...datos, usuarioId });
+    console.log('Usuario en request:', req.user);
+    // El usuarioId se extrae del token JWT (seguridad total)
+    const usuarioId = req.user.id; 
+    return this.patronesService.crear(usuarioId, createPatronDto);
   }
 
-  // Ruta protegida para obtener los patrones del usuario autenticado
-  @UseGuards(AuthGuard('jwt'))
-
-  @Get('mis-patrones')
-  async obtenerMisPatrones(@Request() req) {
-    // El ID viene del token, por seguridad
-    const usuarioId = req.user.userId;
-    return this.patronesServicio.obtenerPorUsuario(usuarioId);
-  }
-
-  @Get('lista')
-  async verTodos() {
-    return this.patronesServicio.obtenerTodos();
+  // Ruta protegida para obtener patrones del usuario logueado
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  async obtenerTodos(@Request() req) {
+    // idUsuariologeado para todo el que necesite el ID del usuario logueado
+    const idUsuariolog = req.user.id;
+    // Log util para debuguear
+    console.log('Usuario logueado con ID:', idUsuariolog , 'Solicita sus patrones.');
+    // Retornamos los patrones del usuario logueado
+    return this.patronesService.obtenerPorUsuario(idUsuariolog);
   }
 }

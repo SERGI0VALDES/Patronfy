@@ -13,7 +13,7 @@ import { JwtStrategy } from './jwt.strategy';
     JwtModule.register({
       global: true, // Lo hacemos global para no tener que importarlo en otros módulos
       secret: 'Patronfy_Secret_2025', // Cambiaremos esto después por una variable .env
-      signOptions: { expiresIn: '5min' }, // El token durará 1 día
+      signOptions: { expiresIn: '1d' }, 
     }),
   ],    
   providers: [AuthService, JwtStrategy],

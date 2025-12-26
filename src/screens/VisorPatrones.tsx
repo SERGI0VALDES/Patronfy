@@ -18,6 +18,11 @@ import { generatePattern, GeneratedPattern } from '../utils/patternGenerator';
 import PatternVisualizer from '../components/PatternVisualizer';
 import { savePatternToLibrary } from '../utils/storage';
 
+import * as Crypto from 'expo-crypto';
+import api from '../api/axios';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 type VisorPatronesNavigationProp = StackNavigationProp<RootStackParamList, 'VisorPatrones'>;
 type VisorPatronesRouteProp = RouteProp<RootStackParamList, 'VisorPatrones'>;
 
@@ -49,7 +54,7 @@ const VisorPatrones: React.FC = () => {
     }
   }, [measures, garmentType, garmentStyle]);
 
-  const handleSavePattern = async () => {
+  /**const handleSavePattern = async () => {
     if (!generatedPattern || !patternName.trim()) {
       Alert.alert('Error', 'Por favor ingresa un nombre para el patrón');
       return;
@@ -75,7 +80,66 @@ const VisorPatrones: React.FC = () => {
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar el patrón');
     }
-  };
+  }; */
+  const handleSavePattern = async () => {
+  if (!generatedPattern || !patternName.trim()) {
+    Alert.alert('Error', 'Por favor ingresa un nombre para el patrón');
+    return;
+  }
+
+  try {
+
+    const tokenPrueba = await AsyncStorage.getItem('token');
+    console.log("--- TOKEN ENCONTRADO EN CELULAR ---", tokenPrueba);
+
+    // 1. Preparamos el objeto según tu esquema de Prisma
+    const datosParaGuardar = {
+      id_local: Crypto.randomUUID(), // Generamos el ID único para sincronización
+      nombre: patternName.trim(),
+      categoria: garmentType, // tshirt, pants, etc.
+      
+      // Guardamos todo el objeto de medidas y el estilo en el campo JSON
+      medidas: {
+        ...measures,
+        style: garmentStyle,
+        client: clientName.trim() || 'Sin nombre',
+        stats: {
+            totalFabric: generatedPattern.totalFabric,
+            difficulty: generatedPattern.difficulty
+        }
+      }
+    };
+
+    // 2. Enviamos al Backend (NestJS)
+    // El interceptor de Axios se encargará de añadir el Token JWT automáticamente
+  
+    const response = await api.post('/patrones', datosParaGuardar);
+
+    if (response.status === 201 || response.status === 200) {
+      setSaveModalVisible(false);
+      Alert.alert(
+        '¡Éxito!', 
+        'Patrón guardado en la nube correctamente',
+        [
+          {
+            text: 'Ver Biblioteca',
+            onPress: () => navigation.navigate('Biblioteca')
+          },
+          {
+            text: 'Seguir aquí',
+            style: 'cancel'
+          }
+        ]
+      );
+    }
+  } catch (error: any) {
+    console.error('Error al guardar en el servidor:', error.response?.data || error.message);
+    Alert.alert(
+      'Error de Conexión', 
+      'No se pudo sincronizar con la base de datos. Verifica tu conexión.'
+    );
+  }
+};
 
   const handleExportPDF = () => {
     Alert.alert(

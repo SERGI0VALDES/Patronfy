@@ -48,9 +48,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('usuario');
-    setUser(null);
+    try {
+      // 1. Borramos los datos físicos del celular
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('usuario');
+      
+      // 2. Limpiamos el estado global (esto disparará el cambio de navegación)
+      setUser(null);
+      
+      console.log("Sesión cerrada correctamente");
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error);
+  }
   };
 
   return (

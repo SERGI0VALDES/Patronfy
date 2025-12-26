@@ -1,38 +1,37 @@
+// src/api/axios.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
-  // Asegúrate de que esta sea tu IP del adaptador Wi-Fi
-  baseURL: 'http://192.168.100.52:3000', 
+   // Red: Casa
+    baseURL: 'http://192.168.1.74:3000',
+   // Red: Casa centro
+   // baseURL: 'http://192.168.100.52:3000',
+   // Red: trabajo
 });
 
-// Interceptor para añadir el token a todas las peticiones
-/** Añadimos 'async' porque AsyncStorage es asíncrono
-api.interceptors.request.use(async (config) => {
-  try {
-    // Usamos await para esperar a que el celular lea el "disco duro"
+// Interceptor de solicitud para agregar el token JWT
+api.interceptors.request.use(
+  async (config) => {
     const token = await AsyncStorage.getItem('token');
-    
-    if (token && config.headers) {
+    if (token) {
+      // Agregamos el token al encabezado Authorization
       config.headers.Authorization = `Bearer ${token}`;
     }
-  } catch (error) {
-    console.error("Error al obtener el token de AsyncStorage", error);
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});*/
+);
 
+// Interceptor de respuesta 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response && error.response.status === 401) {
-      // Si el servidor dice que el token no sirve, borramos todo
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('usuario');
-      // Aquí podrías disparar una redirección al Login
     }
     return Promise.reject(error);
   }

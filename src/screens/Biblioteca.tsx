@@ -1,13 +1,17 @@
-// screens/Biblioteca.tsx - Eliminar el botón "Crear Primer Patrón"
+// screens/Biblioteca.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-// import Header from '../components/common/Header';
 import { RootStackParamList } from '../types/navigation';
-import { getSavedPatterns, SavedPattern, deletePattern } from '../utils/storage';
+import { SavedPattern, deletePattern } from '../utils/storage';
+import NetInfo from '@react-native-community/netinfo';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import api from '../api/axios';
 
 type BibliotecaNavigationProp = StackNavigationProp<RootStackParamList, 'Biblioteca'>;
+
+const CACHE_KEY = '@biblioteca_cache'; // Llave para guardar en el celular
 
 const Biblioteca: React.FC = () => {
   const navigation = useNavigation<BibliotecaNavigationProp>();
@@ -16,6 +20,7 @@ const Biblioteca: React.FC = () => {
   const [patterns, setPatterns] = useState<SavedPattern[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPatterns, setFilteredPatterns] = useState<SavedPattern[]>([]);
+  const [isOffline, setIsOffline] = useState(false); // <--- Estado para avisar al usuario
 
   useEffect(() => {
     if (isFocused) {
@@ -27,9 +32,57 @@ const Biblioteca: React.FC = () => {
     filterPatterns();
   }, [patterns, searchQuery]);
 
+  // Función para mapear los datos (la sacamos para reutilizarla)
+  const mapResponseToPatterns = (data: any[]): SavedPattern[] => {
+    return data.map((p: any) => ({
+    id: p.id,
+    name: p.nombre,
+    garmentType: p.categoria,
+    
+    garmentStyle: p.medidas?.style || 'classic', 
+    
+    instructions: p.medidas?.instructions || [], 
+    
+    createdAt: p.fecha_sincronizacion || p.fecha_creacion,
+    clientName: p.medidas?.client || 'Sin cliente',
+    pieces: p.medidas?.stats?.pieces || [],
+    totalFabric: p.medidas?.stats?.totalFabric || 0,
+    difficulty: p.medidas?.stats?.difficulty || 'Media'
+  }));
+  };
+
   const loadPatterns = async () => {
-    const savedPatterns = await getSavedPatterns();
-    setPatterns(savedPatterns);
+    const state = await NetInfo.fetch();
+    
+    if (state.isConnected) {
+      // --- CASO: CON INTERNET ---
+      try {
+        const response = await api.get('/patrones');
+        const patronesMapeados = mapResponseToPatterns(response.data);
+        
+        // 1. Guardamos en el estado
+        setPatterns(patronesMapeados);
+        setIsOffline(false);
+        
+        // 2. ¡CLAVE! Guardamos una copia en el teléfono para después
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(patronesMapeados));
+        
+      } catch (error) {
+        console.error("Error API, cargando local...", error);
+        loadLocalCache(); // Si el servidor falla, intentamos cargar lo viejo
+      }
+    } else {
+      // --- CASO: SIN INTERNET ---
+      loadLocalCache();
+    }
+  };
+
+  const loadLocalCache = async () => {
+    setIsOffline(true);
+    const cachedData = await AsyncStorage.getItem(CACHE_KEY);
+    if (cachedData) {
+      setPatterns(JSON.parse(cachedData));
+    }
   };
 
   const filterPatterns = () => {
@@ -37,7 +90,6 @@ const Biblioteca: React.FC = () => {
       setFilteredPatterns(patterns);
       return;
     }
-
     const query = searchQuery.toLowerCase();
     const filtered = patterns.filter(pattern =>
       pattern.name.toLowerCase().includes(query) ||
@@ -47,7 +99,12 @@ const Biblioteca: React.FC = () => {
     setFilteredPatterns(filtered);
   };
 
+  // ... (handleDeletePattern y handleViewPattern se mantienen igual)
   const handleDeletePattern = (patternId: string, patternName: string) => {
+    if (isOffline) {
+        Alert.alert("Acción no permitida", "Debes estar conectado a internet para eliminar patrones.");
+        return;
+    }
     Alert.alert(
       'Eliminar Patrón',
       `¿Estás seguro de que quieres eliminar "${patternName}"?`,
@@ -58,7 +115,7 @@ const Biblioteca: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deletePattern(patternId);
+              await api.delete(`/patrones/${patternId}`); // Borrar en DB
               await loadPatterns();
               Alert.alert('Éxito', 'Patrón eliminado correctamente');
             } catch (error) {
@@ -79,7 +136,6 @@ const Biblioteca: React.FC = () => {
         {
           text: 'Ver Detalles',
           onPress: () => {
-            // Podríamos navegar a una pantalla de detalle aquí
             console.log('Ver patrón:', pattern);
           }
         }
@@ -89,9 +145,14 @@ const Biblioteca: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      
+      {/* Aviso de modo Offline */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>Modo sin conexión: Viendo datos locales</Text>
+        </View>
+      )}
+
       <View style={styles.content}>
-        {/* Barra de búsqueda */}
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
@@ -102,28 +163,25 @@ const Biblioteca: React.FC = () => {
           />
         </View>
 
-        {/* Contador */}
         <Text style={styles.resultsText}>
           {filteredPatterns.length} {filteredPatterns.length === 1 ? 'patrón' : 'patrones'} encontrado{filteredPatterns.length !== 1 ? 's' : ''}
         </Text>
 
-        {/* Lista de patrones */}
         <ScrollView style={styles.patternsList}>
           {filteredPatterns.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
                 {patterns.length === 0 
                   ? 'No hay patrones guardados aún' 
-                  : 'No se encontraron patrones que coincidan con la búsqueda'
+                  : 'No se encontraron patrones'
                 }
               </Text>
-              {/* ELIMINADO: Botón "Crear Primer Patrón" */}
             </View>
           ) : (
             filteredPatterns.map((pattern) => (
               <TouchableOpacity
                 key={pattern.id}
-                style={styles.patternCard}
+                style={[styles.patternCard, isOffline && { borderLeftColor: '#666' }]}
                 onPress={() => handleViewPattern(pattern)}
                 onLongPress={() => handleDeletePattern(pattern.id, pattern.name)}
               >
@@ -140,21 +198,14 @@ const Biblioteca: React.FC = () => {
                      pattern.garmentType === 'pants' ? 'Pantalón' :
                      pattern.garmentType === 'dress' ? 'Vestido' : 'Falda'}
                   </Text>
-                  
                   {pattern.clientName && (
                     <Text style={styles.clientName}>Cliente: {pattern.clientName}</Text>
                   )}
-                  
                   <View style={styles.patternStats}>
                     <Text style={styles.stat}>Piezas: {pattern.pieces.length}</Text>
                     <Text style={styles.stat}>Tela: {pattern.totalFabric}m</Text>
-                    <Text style={styles.stat}>Dificultad: {pattern.difficulty}</Text>
                   </View>
                 </View>
-                
-                <Text style={styles.longPressHint}>
-                  Mantén presionado para eliminar
-                </Text>
               </TouchableOpacity>
             ))
           )}
@@ -258,7 +309,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  // ELIMINADO: createButton y createButtonText
+  offlineBanner: {
+    backgroundColor: '#FF9500',
+    padding: 8,
+    alignItems: 'center',
+  },
+  offlineText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
 });
 
 export default Biblioteca;
