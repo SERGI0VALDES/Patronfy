@@ -1,321 +1,249 @@
-// screens/VisorPatrones.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
-  Alert, 
-  TextInput, 
-  Modal 
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, 
+  Alert, TextInput, Modal, ActivityIndicator 
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Header from '../components/common/Header';
-import { RootStackParamList } from '../types/navigation';
-import { generatePattern, GeneratedPattern } from '../utils/patternGenerator';
-import PatternVisualizer from '../components/PatternVisualizer';
-import { savePatternToLibrary } from '../utils/storage';
-
 import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ListaParametrosNavegacion, PiezaSVG, PatronGuardado } from '../types/navigation'
+
+import { obtenerPuntosPatron } from '../utils/generadorTrazos';
+import PatternVisualizer from '../components/PatternVisualizer';
+
 import api from '../api/axios';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { guardarPatronLocal } from '../utils/storage';
 
-type VisorPatronesNavigationProp = StackNavigationProp<RootStackParamList, 'VisorPatrones'>;
-type VisorPatronesRouteProp = RouteProp<RootStackParamList, 'VisorPatrones'>;
+type VisorPatronesNavigationProp = StackNavigationProp<ListaParametrosNavegacion, 'VisorPatrones'>;
+type VisorPatronesRouteProp = RouteProp<ListaParametrosNavegacion, 'VisorPatrones'>;
 
 const VisorPatrones: React.FC = () => {
   const navigation = useNavigation<VisorPatronesNavigationProp>();
   const route = useRoute<VisorPatronesRouteProp>();
-  const { measures, garmentType, garmentStyle } = route.params;
+
+  // Extraemos los parámetros (ahora usando tipoPrenda en español)
+  const { patronGuardado, medidas, tipoPrenda, estiloPrenda } = route.params || {};
 
   const [selectedPiece, setSelectedPiece] = useState<string>('');
-  const [generatedPattern, setGeneratedPattern] = useState<GeneratedPattern | null>(null);
+  const [generatedPattern, setGeneratedPattern] = useState<any | null>(null);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
-  const [patternName, setPatternName] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [nombrePatron, setNombrePatron] = useState('');
+  const [nombreCliente, setClientName] = useState('');
+
+  // Traducción amigable para la UI
+  const nombresPrendas: Record<string, string> = {
+    playera_hombre: 'Playera Hombre',
+    pantalon_hombre: 'Pantalón Hombre',
+    blusa_mujer: 'Blusa Mujer',
+    falda_basica: 'Falta Básica'
+  };
 
   useEffect(() => {
-    try {
-      const pattern = generatePattern(measures, garmentType, garmentStyle);
-      setGeneratedPattern(pattern);
-      if (pattern.pieces.length > 0) {
-        setSelectedPiece(pattern.pieces[0].id);
+    if (patronGuardado) {
+      // CASO A: Viene de la biblioteca (datos ya procesados)
+      setGeneratedPattern(patronGuardado);
+      setNombrePatron(patronGuardado.nombre);
+      setClientName(patronGuardado.nombreCliente || '');
+      if (patronGuardado.piezas?.length > 0) setSelectedPiece(patronGuardado.piezas[0].id);
+    } 
+    else if (medidas && tipoPrenda) {
+      // CASO B: Flujo de creación nueva
+      try {
+        // Llamamos al generador dinámico que definimos anteriormente
+        const newPattern = obtenerPuntosPatron(tipoPrenda, medidas, estiloPrenda);
+        setGeneratedPattern(newPattern);
+        
+        if (newPattern.piezas && newPattern.piezas.length > 0) {
+        setSelectedPiece(newPattern.piezas[0].id);
+        }
+
+        const autoName = `${nombresPrendas[tipoPrenda] || 'Prenda'} - ${new Date().toLocaleDateString()}`;
+        setNombrePatron(autoName);
+      } catch (error) {
+        console.error('Error al generar:', error);
+        Alert.alert('Error', 'Hubo un problema al calcular el trazado técnico.');
       }
-      
-      // Generar nombre automático
-      const autoName = `${garmentType === 'tshirt' ? 'Playera' : 'Prenda'} - ${new Date().toLocaleDateString()}`;
-      setPatternName(autoName);
-    } catch (error) {
-      console.error('Error generating pattern:', error);
-      Alert.alert('Error', 'No se pudo generar el patrón. Verifica las medidas.');
     }
-  }, [measures, garmentType, garmentStyle]);
+  }, [patronGuardado, medidas, tipoPrenda, estiloPrenda]);
 
-  /**const handleSavePattern = async () => {
-    if (!generatedPattern || !patternName.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un nombre para el patrón');
-      return;
-    }
-
-    try {
-      await savePatternToLibrary(generatedPattern, patternName.trim(), clientName.trim() || undefined);
-      setSaveModalVisible(false);
-      Alert.alert(
-        '¡Éxito!', 
-        'Patrón guardado en la biblioteca',
-        [
-          {
-            text: 'Ver Biblioteca',
-            onPress: () => navigation.navigate('Biblioteca')
-          },
-          {
-            text: 'Seguir aquí',
-            style: 'cancel'
-          }
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo guardar el patrón');
-    }
-  }; */
   const handleSavePattern = async () => {
-  if (!generatedPattern || !patternName.trim()) {
+  if (!generatedPattern || !nombrePatron.trim()) {
     Alert.alert('Error', 'Por favor ingresa un nombre para el patrón');
     return;
   }
 
   try {
+    // Definimos tipoPrendaFinal para que no de error ts(2552)
+    // Buscamos en los params de la ruta, o en el patrón guardado, o usamos un default
+    const tipoPrendaFinal = tipoPrenda || patronGuardado?.tipoPrenda || 'playera_hombre';
+    
+    // Definimos la categoría basada en el tipo de prenda
+    const categoriaCalculada = tipoPrendaFinal.includes('hombre') ? 'Caballero' : 'Dama';
 
-    const tokenPrueba = await AsyncStorage.getItem('token');
-    console.log("--- TOKEN ENCONTRADO EN CELULAR ---", tokenPrueba);
-
-    // 1. Preparamos el objeto según tu esquema de Prisma
-    const datosParaGuardar = {
-      id_local: Crypto.randomUUID(), // Generamos el ID único para sincronización
-      nombre: patternName.trim(),
-      categoria: garmentType, // tshirt, pants, etc.
-      
-      // Guardamos todo el objeto de medidas y el estilo en el campo JSON
-      medidas: {
-        ...measures,
-        style: garmentStyle,
-        client: clientName.trim() || 'Sin nombre',
-        stats: {
-            totalFabric: generatedPattern.totalFabric,
-            difficulty: generatedPattern.difficulty
-        }
-      }
+    const datosParaGuardar: PatronGuardado = {
+      id: patronGuardado?.id || Crypto.randomUUID(),
+      nombre: nombrePatron.trim(), 
+      nombreCliente: nombreCliente.trim() || 'Sin nombre',
+      tipoPrenda: tipoPrendaFinal, 
+      categoria: categoriaCalculada, // <--- Ahora sí la reconoce
+      piezas: generatedPattern.piezas,
+      instrucciones: generatedPattern.instrucciones || [],
+      fechaCreacion: new Date().toISOString(),
+      estiloPrenda: estiloPrenda || patronGuardado?.estiloPrenda || {},
+      totalTela: generatedPattern.totalTela || 1.5,
+      dificultad: generatedPattern.dificultad || 'Media',
+      medidas: medidas || patronGuardado?.medidas
     };
 
-    // 2. Enviamos al Backend (NestJS)
-    // El interceptor de Axios se encargará de añadir el Token JWT automáticamente
-  
+    // 1. Guardar local
+    await guardarPatronLocal(datosParaGuardar);
+
+    // 2. Enviar al servidor
     const response = await api.post('/patrones', datosParaGuardar);
 
     if (response.status === 201 || response.status === 200) {
       setSaveModalVisible(false);
-      Alert.alert(
-        '¡Éxito!', 
-        'Patrón guardado en la nube correctamente',
-        [
-          {
-            text: 'Ver Biblioteca',
-            onPress: () => navigation.navigate('Biblioteca')
-          },
-          {
-            text: 'Seguir aquí',
-            style: 'cancel'
-          }
-        ]
-      );
+      Alert.alert('¡Éxito!', 'Patrón guardado y sincronizado.', [
+        { text: 'Ir a Biblioteca', onPress: () => navigation.navigate('Biblioteca') }
+      ]);
     }
   } catch (error: any) {
-    console.error('Error al guardar en el servidor:', error.response?.data || error.message);
-    Alert.alert(
-      'Error de Conexión', 
-      'No se pudo sincronizar con la base de datos. Verifica tu conexión.'
-    );
+    console.error('Error al guardar:', error);
+    setSaveModalVisible(false);
+    Alert.alert('Guardado Local', 'Se guardó en el dispositivo, pero la nube falló.');
+    navigation.navigate('Biblioteca');
   }
 };
 
-  const handleExportPDF = () => {
-    Alert.alert(
-      'Exportar Patrón',
-      `¿Exportar patrón de ${generatedPattern?.garmentType} en PDF?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Exportar', 
-          onPress: () => {
-            console.log('Exportando patrón:', generatedPattern);
-            Alert.alert('Éxito', 'PDF generado correctamente');
-          }
-        },
-      ]
-    );
-  };
-
+  
   if (!generatedPattern) {
     return (
-      <View style={styles.container}>
-        <Header title="Generando Patrón..." showBackButton={true} />
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Calculando medidas del patrón...</Text>
-        </View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Generando...</Text>
       </View>
     );
   }
 
-  const selectedPieceData = generatedPattern.pieces.find(p => p.id === selectedPiece);
+  const selectedPieceData = generatedPattern.piezas?.find((p: any) => p.id === selectedPiece);
 
   return (
     <View style={styles.container}>
-      <Header title="Patrón Generado" showBackButton={true} />
       
       <ScrollView style={styles.content}>
-        {/* Información del patrón */}
+        {/* Card de Información Técnica */}
         <View style={styles.patternInfo}>
           <Text style={styles.patternTitle}>
-            {garmentType === 'tshirt' ? 'Playera' : 
-             garmentType === 'pants' ? 'Pantalón' :
-             garmentType === 'dress' ? 'Vestido' : 'Falda'}
+            {tipoPrenda ? nombresPrendas[tipoPrenda] : 'Patrón Personalizado'}
           </Text>
           <Text style={styles.patternSubtitle}>
-            Cuello: {garmentStyle.neckType} | Manga: {garmentStyle.sleeveType}
+            Sistema: Geometría Proporcional | Cliente: {nombreCliente || 'Ninguno asignado'}
           </Text>
           
           <View style={styles.statsContainer}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{generatedPattern.totalFabric}m</Text>
-              <Text style={styles.statLabel}>Tela necesaria</Text>
+              <Text style={styles.statValue}>{generatedPattern.totalTela || '1.5'}m</Text>
+              <Text style={styles.statLabel}>Tela aprox.</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{generatedPattern.difficulty}</Text>
+              <Text style={styles.statValue}>{generatedPattern.dificultad || 'Media'}</Text>
               <Text style={styles.statLabel}>Dificultad</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{generatedPattern.pieces.length}</Text>
+              <Text style={styles.statValue}>{generatedPattern.piezas?.length || 0}</Text>
               <Text style={styles.statLabel}>Piezas</Text>
             </View>
           </View>
         </View>
 
-        {/* Selector de piezas */}
-        <Text style={styles.sectionTitle}>Piezas del Patrón</Text>
+        {/* Selector de Piezas (Delantero, Trasero, etc.) */}
+        <Text style={styles.sectionTitle}>Piezas a Cortar</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.piecesScroll}>
-          {generatedPattern.pieces.map((piece) => (
+          {generatedPattern.piezas?.map((piece: any, index: number) => (
             <TouchableOpacity
-              key={piece.id}
-              style={[
-                styles.pieceButton,
-                selectedPiece === piece.id && styles.pieceButtonSelected
-              ]}
-              onPress={() => setSelectedPiece(piece.id)}
+              key={piece.id || index} 
+              style={[styles.pieceButton, selectedPiece === piece.id && styles.pieceButtonSelected]}
+              onPress={() => setSelectedPiece(piece.id)} 
             >
-              <Text style={[
-                styles.pieceButtonText,
-                selectedPiece === piece.id && styles.pieceButtonTextSelected
-              ]}>
-                {piece.name}
+              <Text style={[styles.pieceButtonText, selectedPiece === piece.id && styles.pieceButtonTextSelected]}>
+                {piece.nombre}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        {/* Visualización del patrón */}
+        {/* El Canvas del Patrón */}
         <View style={styles.patternVisualization}>
           <Text style={styles.visualizationTitle}>
-            {selectedPieceData?.name}
+            {selectedPieceData?.nombre || 'Seleccione una pieza'}
           </Text>
           <Text style={styles.measurementsText}>
-            {selectedPieceData?.measurements}
+            {selectedPieceData?.descripcion || 'Calculando geometría...'}
           </Text>
           
-          {/* Componente de visualización */}
-          {selectedPieceData && (
-            <PatternVisualizer 
-              piece={selectedPieceData}
-              scale={0.6}
-              showMeasurements={true}
-              showGrid={true}
-            />
+          {selectedPieceData ? (
+            <View style={styles.canvasContainer}>
+              {selectedPieceData ? (
+                <PatternVisualizer 
+                  piece={selectedPieceData}
+                  // Si la escala 1:10 es muy grande, aquí la ajustamos para la pantalla
+                  scale={0.5} 
+                />
+              ) : (
+                <View style={styles.errorContainer}>
+                  <Text style={{color: 'white'}}>Generando trazo técnico...</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <ActivityIndicator size="small" color="#666" />
           )}
         </View>
 
-        {/* Instrucciones */}
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsTitle}>Instrucciones de Corte</Text>
-          {generatedPattern.instructions.map((instruction, index) => (
-            <Text key={index} style={styles.instructionText}>
-              • {instruction}
-            </Text>
-          ))}
-        </View>
-
-        {/* Acciones */}
+        {/* Botones de Acción */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity 
-            style={styles.saveButton} 
-            onPress={() => setSaveModalVisible(true)}
-          >
-            <Text style={styles.saveButtonText}>Guardar en Biblioteca</Text>
+          <TouchableOpacity style={styles.saveButton} onPress={() => setSaveModalVisible(true)}>
+            <Text style={styles.saveButtonText}>💾 Guardar en Nube</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={handleExportPDF}>
-            <Text style={styles.actionButtonText}>Exportar PDF</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Imprimir', 'Función de impresión en desarrollo')}>
-            <Text style={styles.actionButtonText}>Imprimir</Text>
-          </TouchableOpacity>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('PDF', 'Generando archivo de impresión...')}>
+              <Text style={styles.actionButtonText}>Exportar PDF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.actionButtonText}>Corregir</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
-      {/* Modal para guardar patrón */}
-      <Modal
-        visible={saveModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setSaveModalVisible(false)}
-      >
+      {/* Modal de Guardado */}
+      <Modal visible={saveModalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Guardar Patrón</Text>
-            
-            <Text style={styles.modalLabel}>Nombre del patrón *</Text>
+            <Text style={styles.modalTitle}>Sincronizar Patrón</Text>
             <TextInput
               style={styles.modalInput}
-              value={patternName}
-              onChangeText={setPatternName}
-              placeholder="Ej: Playera básica verano"
-              placeholderTextColor="#666666"
+              value={nombrePatron}
+              onChangeText={setNombrePatron}
+              placeholder="Nombre del Proyecto"
+              placeholderTextColor="#666"
             />
-            
-            <Text style={styles.modalLabel}>Nombre del cliente (opcional)</Text>
             <TextInput
               style={styles.modalInput}
-              value={clientName}
+              value={nombreCliente}
               onChangeText={setClientName}
-              placeholder="Ej: María González"
-              placeholderTextColor="#666666"
+              placeholder="Nombre del Cliente"
+              placeholderTextColor="#666"
             />
-            
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setSaveModalVisible(false)}
-              >
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setSaveModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={handleSavePattern}
-              >
-                <Text style={styles.confirmButtonText}>Guardar</Text>
+              <TouchableOpacity style={styles.confirmButton} onPress={handleSavePattern}>
+                <Text style={styles.confirmButtonText}>Confirmar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -326,220 +254,43 @@ const VisorPatrones: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a1a',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  patternInfo: {
-    backgroundColor: '#2a2a2a',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  patternTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  patternSubtitle: {
-    fontSize: 16,
-    color: '#CCCCCC',
-    marginBottom: 12,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
-  },
-  stat: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#CCCCCC',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  piecesScroll: {
-    marginBottom: 20,
-  },
-  pieceButton: {
-    backgroundColor: '#2a2a2a',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#444444',
-  },
-  pieceButtonSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  pieceButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  pieceButtonTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  patternVisualization: {
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  visualizationTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  measurementsText: {
-    fontSize: 14,
-    color: '#CCCCCC',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  instructions: {
-    backgroundColor: '#2a2a2a',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  instructionsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  instructionText: {
-    fontSize: 14,
-    color: '#CCCCCC',
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-  },
-  actionButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  saveButton: {
-    backgroundColor: '#34C759',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalLabel: {
-    fontSize: 14,
-    color: '#CCCCCC',
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  modalInput: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#444444',
-    borderRadius: 8,
-    padding: 12,
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  modalButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  cancelButton: {
-    backgroundColor: '#8E8E93',
-  },
-  confirmButton: {
-    backgroundColor: '#007AFF',
-  },
-  cancelButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  confirmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  container: { flex: 1, backgroundColor: '#121212' },
+  errorContainer: {flex:1, backgroundColor: '#121212'},
+  content: { flex: 1, padding: 15 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' },
+  loadingText: { color: '#FFF', marginTop: 15, fontSize: 16 },
+  patternInfo: { backgroundColor: '#1E1E1E', padding: 20, borderRadius: 15, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
+  patternTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFF' },
+  patternSubtitle: { color: '#888', marginBottom: 15 },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 15 },
+  stat: { alignItems: 'center' },
+  statValue: { fontSize: 16, fontWeight: 'bold', color: '#007AFF' },
+  statLabel: { fontSize: 11, color: '#666', textTransform: 'uppercase' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFF', marginBottom: 15 },
+  piecesScroll: { marginBottom: 20 },
+  pieceButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25, backgroundColor: '#1E1E1E', marginRight: 10, borderWidth: 1, borderColor: '#333' },
+  pieceButtonSelected: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+  pieceButtonText: { color: '#AAA', fontWeight: '600' },
+  pieceButtonTextSelected: { color: '#FFF' },
+  patternVisualization: { alignItems: 'center', backgroundColor: '#FFF', borderRadius: 20, padding: 20, marginBottom: 20 },
+  canvasContainer: { width: '100%', height: 400, justifyContent: 'center', alignItems: 'center' },
+  visualizationTitle: { fontSize: 18, fontWeight: 'bold', color: '#121212' },
+  measurementsText: { color: '#666', marginBottom: 10 },
+  actionsContainer: { marginBottom: 40 },
+  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  saveButton: { backgroundColor: '#34C759', padding: 18, borderRadius: 15, alignItems: 'center', marginBottom: 10 },
+  saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  actionButton: { backgroundColor: '#222', padding: 15, borderRadius: 12, flex: 0.48, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  actionButtonText: { color: '#FFF', fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#1E1E1E', padding: 25, borderRadius: 20, width: '85%' },
+  modalTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  modalInput: { backgroundColor: '#121212', borderRadius: 10, padding: 15, color: '#FFF', marginBottom: 15, borderWidth: 1, borderColor: '#333' },
+  modalButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  cancelButton: { flex: 0.45, padding: 15, alignItems: 'center' },
+  confirmButton: { flex: 0.45, backgroundColor: '#007AFF', padding: 15, borderRadius: 10, alignItems: 'center' },
+  cancelButtonText: { color: '#888', fontWeight: 'bold' },
+  confirmButtonText: { color: '#FFF', fontWeight: 'bold' },
 });
 
 export default VisorPatrones;

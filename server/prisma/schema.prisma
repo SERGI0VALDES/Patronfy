@@ -21,24 +21,31 @@ model Usuario {
 }
 
 model Patron {
-  id               String   @id @default(uuid())
-  id_local         String   @unique // ID generado en el celular para evitar duplicados
-  nombre           String
-  categoria        String   // Ej: "Damas", "Caballeros"
+  id                 String   @id @default(uuid())
+  id_local           String   @unique
+  nombre             String
+  categoria          String   // Ej: "Caballero", "Dama"
   
-  // Guardamos las medidas como un objeto JSON 
-  medidas          Json     
-
-  // Relación con el usuario
-  usuario          Usuario  @relation(fields: [usuarioId], references: [id])
-  usuarioId        String
-
-  // Control de fechas
-  fechaCreacion    DateTime @default(now())
+  // --- NUEVOS CAMPOS ---
+  nombreCliente      String?  // "Sergio", "Altima"
+  tipoPrenda         String?  // "playera_hombre"
+  totalTela          Float?   // 0.35, 0.17
+  dificultad         String?  // "Media", "Fácil"
+  
+  // Estructuras complejas (se guardan como Json)
+  piezas             Json?    // Aquí va el array de objetos con los dibujos (d)
+  instrucciones      Json?    // Aquí va el array de pasos ["Paso 1", "Paso 2"]
+  estiloPrenda       Json?   
+  
+  // --- CAMPOS TÉCNICOS ---
+  medidas            Json     // Se mantiene para las medidas de sisa, talle, etc.
+  
+  // Relaciones y Control
+  usuario            Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId          String
+  fechaCreacion      DateTime @default(now())
   fechaActualizacion DateTime @updatedAt
-  
-  // Para saber cuándo se sincronizó con la nube
-  fechaSincronizacion DateTime? 
+  fechaSincronizacion DateTime?
 
   @@unique([usuarioId, id_local])
 }

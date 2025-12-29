@@ -1,36 +1,58 @@
 // types/navigation.ts
+import { TipoPrenda,
+         MedidasPlayeraHombre
+ } from './medidas'; // Importa el mismo
 
-// Definimos todos los tipos aquí para simplicidad
-export type BodyMeasures = {
-  chest: number;
-  waist: number;
-  hips: number;
-  torsoLength: number;
-  shoulderWidth: number;
-  armLength: number;
-  neckCircumference: number;
+export interface PiezaSVG {
+  id: string;
+  nombre: string;
+  d: string;
+  medidasInfo?: string;
+  instrucciones?: string[];
+}
+
+export interface PatronGuardado {
+  id: string;
+  nombre: string;
+  nombreCliente: string;
+  tipoPrenda: string;
+  fechaCreacion: string;
+  piezas: PiezaSVG[];
+  categoria: string; // <--- AGREGA ESTA LÍNEA
+  instrucciones: string[];
+  estiloPrenda: any; // Aquí puedes ser más específico si tienes el tipo EstiloPrenda
+  totalTela: number;
+  dificultad: string;
+  medidas?: any;
+}
+
+// 1. Unificamos todas las posibles medidas en un solo tipo
+export type MedidasDePrenda = MedidasPlayeraHombre /* | MedidasPantalonHombre */;
+
+// 2. Definimos el estilo estético de la prenda
+export type EstiloPrenda = {
+  tipoCuello: 'redondo' | 'en_v';
+  tipoManga: 'corta' | 'larga';
 };
 
-export type GarmentType = 'tshirt' | 'pants' | 'dress' | 'skirt';
-export type GarmentStyle = {
-  neckType: 'round' | 'v-neck';
-  sleeveType: 'short' | 'long';
-};
-
-export type RootStackParamList = {
+// 4. Definición de las rutas de navegación
+export type ListaParametrosNavegacion = {
   Home: undefined;
   Biblioteca: undefined;
-  MedidaEntrada: undefined;
-  SeleccionPrendas: { 
-    measures: BodyMeasures;
-    garmentType?: GarmentType;
-    garmentStyle?: GarmentStyle;
-  };
+  SeleccionPrendas: undefined;
+
+  // Pantalla para ingresar medidas (recibe qué prenda vamos a medir)
+  MedidaEntrada: { tipoPrenda: TipoPrenda };
+
+  // El Visor puede recibir medidas nuevas para generar un trazo
+  // O un patrón ya existente de la base de datos
   VisorPatrones: { 
-    measures: BodyMeasures;
-    garmentType: GarmentType;
-    garmentStyle: GarmentStyle;
+    medidas?: MedidasDePrenda; 
+    tipoPrenda?: TipoPrenda;
+    estiloPrenda?: EstiloPrenda;
+    patronGuardado?: PatronGuardado;
   };
+
   PerfilCliente: undefined;
   LoginRegister: undefined;
   SeleccionEntrada: undefined; 

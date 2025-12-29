@@ -3,7 +3,7 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { RootStackParamList } from './src/types/navigation';
+import { ListaParametrosNavegacion} from './src/types/navigation';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 import HomeScreen from './src/screens/HomeScreen';
@@ -21,7 +21,7 @@ import LogoutScreen from './src/screens/auth/LogoutScreen';
 
 // Importamos el contexto de autenticación
 
-const Stack = createStackNavigator<RootStackParamList>();
+const Stack = createStackNavigator<ListaParametrosNavegacion>();
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -73,6 +73,11 @@ const AppContent: React.FC = () => {
         ) : (
           // --- GRUPO DE PANTALLAS PÚBLICAS ---
           // Si NO hay usuario, la ÚNICA pantalla que existe es el Login.
+          /*<Stack.Screen 
+            name="LoginRegister" 
+            component={LoginRegister} 
+            options={{ headerShown: false }} 
+          />*/
           <Stack.Screen 
             name="LoginRegister" 
             component={LoginRegister} 

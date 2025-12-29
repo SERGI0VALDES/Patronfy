@@ -1,26 +1,24 @@
-// screens/Biblioteca.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../types/navigation';
-import { SavedPattern, deletePattern } from '../utils/storage';
+import { ListaParametrosNavegacion, PatronGuardado } from '../types/navigation'; 
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import api from '../api/axios';
 
-type BibliotecaNavigationProp = StackNavigationProp<RootStackParamList, 'Biblioteca'>;
+type BibliotecaNavigationProp = StackNavigationProp<ListaParametrosNavegacion, 'Biblioteca'>;
 
-const CACHE_KEY = '@biblioteca_cache'; // Llave para guardar en el celular
+const CACHE_KEY = '@biblioteca_cache';
 
 const Biblioteca: React.FC = () => {
   const navigation = useNavigation<BibliotecaNavigationProp>();
   const isFocused = useIsFocused();
   
-  const [patterns, setPatterns] = useState<SavedPattern[]>([]);
+  const [patrones, setPatrones] = useState<PatronGuardado[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredPatterns, setFilteredPatterns] = useState<SavedPattern[]>([]);
-  const [isOffline, setIsOffline] = useState(false); // <--- Estado para avisar al usuario
+  const [filteredPatterns, setFilteredPatterns] = useState<PatronGuardado[]>([]);
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -30,49 +28,46 @@ const Biblioteca: React.FC = () => {
 
   useEffect(() => {
     filterPatterns();
-  }, [patterns, searchQuery]);
+  }, [patrones, searchQuery]);
 
-  // Función para mapear los datos (la sacamos para reutilizarla)
-  const mapResponseToPatterns = (data: any[]): SavedPattern[] => {
+  // EL MAPEO: Aquí es donde resolvemos el lío con Prisma y los nombres
+  const mapResponseToPatterns = (data: any[]): PatronGuardado[] => {
     return data.map((p: any) => ({
-    id: p.id,
-    name: p.nombre,
-    garmentType: p.categoria,
-    
-    garmentStyle: p.medidas?.style || 'classic', 
-    
-    instructions: p.medidas?.instructions || [], 
-    
-    createdAt: p.fecha_sincronizacion || p.fecha_creacion,
-    clientName: p.medidas?.client || 'Sin cliente',
-    pieces: p.medidas?.stats?.pieces || [],
-    totalFabric: p.medidas?.stats?.totalFabric || 0,
-    difficulty: p.medidas?.stats?.difficulty || 'Media'
-  }));
+      id: p.id || p.id_local,
+      nombre: p.nombre,
+      // Si el server no manda categoria, la inferimos del tipo para que Prisma no falle
+      categoria: p.categoria || (p.tipoPrenda?.includes('hombre') ? 'Caballero' : 'Dama'),
+      tipoPrenda: p.tipoPrenda || 'playera_hombre',
+      
+      nombreCliente: p.nombreCliente || p.medidas?.cliente || 'Sin cliente',
+      fechaCreacion: p.fechaCreacion || p.fecha_sincronizacion || p.fecha_creacion,
+      
+      // Recuperamos los dibujos (piezas)
+      piezas: p.piezas || p.medidas?.piezas || [],
+      instrucciones: p.instrucciones || p.medidas?.instrucciones || [],
+      
+      // Datos de estilo y stats
+      estiloPrenda: p.estiloPrenda || p.medidas?.estilo || { tipoCuello: 'redondo', tipoManga: 'corta' },
+      totalTela: p.totalTela || p.medidas?.stats?.totalTela || 1.5,
+      dificultad: p.dificultad || p.medidas?.stats?.dificultad || 'Media',
+      medidas: p.medidas
+    }));
   };
 
   const loadPatterns = async () => {
     const state = await NetInfo.fetch();
-    
     if (state.isConnected) {
-      // --- CASO: CON INTERNET ---
       try {
         const response = await api.get('/patrones');
         const patronesMapeados = mapResponseToPatterns(response.data);
-        
-        // 1. Guardamos en el estado
-        setPatterns(patronesMapeados);
+        setPatrones(patronesMapeados);
         setIsOffline(false);
-        
-        // 2. ¡CLAVE! Guardamos una copia en el teléfono para después
         await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(patronesMapeados));
-        
       } catch (error) {
         console.error("Error API, cargando local...", error);
-        loadLocalCache(); // Si el servidor falla, intentamos cargar lo viejo
+        loadLocalCache();
       }
     } else {
-      // --- CASO: SIN INTERNET ---
       loadLocalCache();
     }
   };
@@ -81,134 +76,90 @@ const Biblioteca: React.FC = () => {
     setIsOffline(true);
     const cachedData = await AsyncStorage.getItem(CACHE_KEY);
     if (cachedData) {
-      setPatterns(JSON.parse(cachedData));
+      // Importante: También mapeamos el caché para que tenga los campos nuevos
+      setPatrones(mapResponseToPatterns(JSON.parse(cachedData)));
     }
   };
 
   const filterPatterns = () => {
     if (!searchQuery.trim()) {
-      setFilteredPatterns(patterns);
+      setFilteredPatterns(patrones);
       return;
     }
     const query = searchQuery.toLowerCase();
-    const filtered = patterns.filter(pattern =>
-      pattern.name.toLowerCase().includes(query) ||
-      pattern.clientName?.toLowerCase().includes(query) ||
-      pattern.garmentType.toLowerCase().includes(query)
+    const filtered = patrones.filter(p =>
+      p.nombre.toLowerCase().includes(query) ||
+      p.nombreCliente?.toLowerCase().includes(query) ||
+      p.categoria.toLowerCase().includes(query)
     );
     setFilteredPatterns(filtered);
   };
 
-  // ... (handleDeletePattern y handleViewPattern se mantienen igual)
-  const handleDeletePattern = (patternId: string, patternName: string) => {
+  const handleDeletePattern = (id: string, name: string) => {
     if (isOffline) {
-        Alert.alert("Acción no permitida", "Debes estar conectado a internet para eliminar patrones.");
-        return;
+      Alert.alert("Acción no permitida", "Conéctate para eliminar de la nube.");
+      return;
     }
-    Alert.alert(
-      'Eliminar Patrón',
-      `¿Estás seguro de que quieres eliminar "${patternName}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/patrones/${patternId}`); // Borrar en DB
-              await loadPatterns();
-              Alert.alert('Éxito', 'Patrón eliminado correctamente');
-            } catch (error) {
-              Alert.alert('Error', 'No se pudo eliminar el patrón');
-            }
-          }
-        }
-      ]
-    );
+    Alert.alert('Eliminar', `¿Borrar "${name}"?`, [
+      { text: 'No', style: 'cancel' },
+      { text: 'Sí, borrar', style: 'destructive', onPress: async () => {
+          try {
+            await api.delete(`/patrones/${id}`);
+            loadPatterns();
+          } catch (e) { Alert.alert('Error', 'No se pudo eliminar'); }
+      }}
+    ]);
   };
 
-  const handleViewPattern = (pattern: SavedPattern) => {
-    Alert.alert(
-      pattern.name,
-      `Tipo: ${pattern.garmentType}\nCliente: ${pattern.clientName || 'No especificado'}\nTela: ${pattern.totalFabric}m\nPiezas: ${pattern.pieces.length}`,
-      [
-        { text: 'Cerrar', style: 'cancel' },
-        {
-          text: 'Ver Detalles',
-          onPress: () => {
-            console.log('Ver patrón:', pattern);
-          }
-        }
-      ]
-    );
+  // Función para ir al Visor (Ya no es solo un Alert)
+  const handleViewPattern = (patron: PatronGuardado) => {
+    navigation.navigate('VisorPatrones', { patronGuardado: patron });
   };
 
   return (
     <View style={styles.container}>
-      {/* Aviso de modo Offline */}
       {isOffline && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>Modo sin conexión: Viendo datos locales</Text>
+          <Text style={styles.offlineText}>Modo Offline: Datos Locales</Text>
         </View>
       )}
 
       <View style={styles.content}>
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por nombre, cliente o tipo..."
-            placeholderTextColor="#666666"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        <Text style={styles.resultsText}>
-          {filteredPatterns.length} {filteredPatterns.length === 1 ? 'patrón' : 'patrones'} encontrado{filteredPatterns.length !== 1 ? 's' : ''}
-        </Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar patrón..."
+          placeholderTextColor="#666"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
 
         <ScrollView style={styles.patternsList}>
-          {filteredPatterns.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                {patterns.length === 0 
-                  ? 'No hay patrones guardados aún' 
-                  : 'No se encontraron patrones'
-                }
-              </Text>
-            </View>
-          ) : (
-            filteredPatterns.map((pattern) => (
-              <TouchableOpacity
-                key={pattern.id}
-                style={[styles.patternCard, isOffline && { borderLeftColor: '#666' }]}
-                onPress={() => handleViewPattern(pattern)}
-                onLongPress={() => handleDeletePattern(pattern.id, pattern.name)}
-              >
-                <View style={styles.patternHeader}>
-                  <Text style={styles.patternName}>{pattern.name}</Text>
-                  <Text style={styles.patternDate}>
-                    {new Date(pattern.createdAt).toLocaleDateString()}
-                  </Text>
+          {filteredPatterns.map((patron) => (
+            <TouchableOpacity
+              key={patron.id}
+              style={styles.patternCard}
+              onPress={() => handleViewPattern(patron)}
+              onLongPress={() => handleDeletePattern(patron.id, patron.nombre)}
+            >
+              <View style={styles.patternHeader}>
+                <Text style={styles.patternName}>{patron.nombre}</Text>
+                <Text style={styles.patternDate}>
+                  {patron.fechaCreacion ? new Date(patron.fechaCreacion).toLocaleDateString() : 'S/F'}
+                </Text>
+              </View>
+              
+              <View style={styles.patternDetails}>
+                <Text style={[styles.patternType, { color: patron.categoria === 'Caballero' ? '#007AFF' : '#FF2D55' }]}>
+                  {patron.categoria} - {patron.tipoPrenda.replace('_', ' ')}
+                </Text>
+                <Text style={styles.clientName}>Cliente: {patron.nombreCliente}</Text>
+                <View style={styles.patternStats}>
+                  <Text style={styles.stat}>Tela: {patron.totalTela}m</Text>
+                  <Text style={styles.stat}>Piezas: {patron.piezas.length}</Text>
                 </View>
-                
-                <View style={styles.patternDetails}>
-                  <Text style={styles.patternType}>
-                    {pattern.garmentType === 'tshirt' ? 'Playera' : 
-                     pattern.garmentType === 'pants' ? 'Pantalón' :
-                     pattern.garmentType === 'dress' ? 'Vestido' : 'Falda'}
-                  </Text>
-                  {pattern.clientName && (
-                    <Text style={styles.clientName}>Cliente: {pattern.clientName}</Text>
-                  )}
-                  <View style={styles.patternStats}>
-                    <Text style={styles.stat}>Piezas: {pattern.pieces.length}</Text>
-                    <Text style={styles.stat}>Tela: {pattern.totalFabric}m</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
+              </View>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
     </View>

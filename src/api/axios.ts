@@ -8,6 +8,7 @@ const api = axios.create({
    // Red: Casa centro
    // baseURL: 'http://192.168.100.52:3000',
    // Red: trabajo
+   // baseURL: 'http://192.168.1.133:3000',
 });
 
 // Interceptor de solicitud para agregar el token JWT

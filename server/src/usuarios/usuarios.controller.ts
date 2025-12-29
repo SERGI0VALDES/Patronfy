@@ -8,6 +8,7 @@ export class UsuariosController {
   // Esta ruta será: POST http://localhost:3000/usuarios/registro
   @Post('registro')
   async crear(@Body() datos: any) {
+    console.log('--- ¡LLEGÓ UNA PETICIÓN DE REGISTRO! ---');
     return this.usuariosService.crearUsuario(datos);
   }
 

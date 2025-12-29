@@ -5,9 +5,9 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useAuth } from '../context/AuthContext'; 
-import { RootStackParamList } from '../types/navigation';
+import { ListaParametrosNavegacion } from '../types/navigation';
 
-type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
+type HomeScreenNavigationProp = StackNavigationProp<ListaParametrosNavegacion, 'Home'>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
@@ -25,33 +25,29 @@ const HomeScreen: React.FC = () => {
 
         <TouchableOpacity 
           style={styles.primaryButton}
-          onPress={() => navigation.navigate('SeleccionEntrada')}
+          onPress={() => navigation.navigate('SeleccionPrendas')}
         >
           <Text style={styles.primaryButtonText}>Crear Nuevo Patrón</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.secondaryButton}
+        <TouchableOpacity style={styles.secondaryButton}
           onPress={() => navigation.navigate('Biblioteca')}
         >
           <Text style={styles.secondaryButtonText}>Ver Biblioteca de Patrones</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.secondaryButton}
+        <TouchableOpacity style={styles.secondaryButton}
           onPress={() => navigation.navigate('MisClientes')}
         >
           <Text style={styles.secondaryButtonText}>Gestión de Clientes</Text>
         </TouchableOpacity>
 
         
-        <TouchableOpacity 
-      style={styles.logoutButton}
-      onPress={() => navigation.navigate('LogoutAnimation')} // <-- Navegamos a la animación
-      activeOpacity={0.6}
-    >
-      <Text style={styles.logoutButtonText}>Salir de Patronfy</Text>
-    </TouchableOpacity>
+        <TouchableOpacity style={styles.logoutButton}
+        onPress={() => navigation.navigate('LogoutAnimation')} activeOpacity={0.6}
+        >
+        <Text style={styles.logoutButtonText}>Salir de Patronfy</Text>
+        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>

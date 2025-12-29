@@ -1,10 +1,9 @@
-// src/patrones/dto/create-patrone.dto.ts
-import { IsString, IsNotEmpty, IsObject, IsUUID, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsObject, IsOptional, IsNumber } from 'class-validator';
 
 export class CreatePatronDto {
   @IsString()
   @IsNotEmpty()
-  id_local: string; // El UUID generado por el celular
+  id_local: string;
 
   @IsString()
   @IsNotEmpty()
@@ -16,5 +15,26 @@ export class CreatePatronDto {
 
   @IsObject()
   @IsNotEmpty()
-  medidas: any; // Validamos que sea un objeto, Prisma se encarga de convertirlo a JSON
+  medidas: any;
+
+  @IsOptional() @IsString()
+  nombreCliente?: string;
+
+  @IsOptional() @IsString()
+  tipoPrenda?: string;
+
+  @IsOptional() @IsNumber()
+  totalTela?: number;
+
+  @IsOptional() @IsString()
+  dificultad?: string;
+
+  @IsOptional()
+  piezas?: any;
+
+  @IsOptional()
+  instrucciones?: any;
+
+  @IsOptional()
+  estiloPrenda?: any;
 }

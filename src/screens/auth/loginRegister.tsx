@@ -4,12 +4,12 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../../context/AuthContext'; // Asegúrate de que la ruta sea correcta
 import api from '../../api/axios'; // Para el registro directo
-import { RootStackParamList } from '../../types/navigation';
+import { ListaParametrosNavegacion } from '../../types/navigation';
 
 // NetInfor para verificar la conexión de internet
 import NetInfo from '@react-native-community/netinfo';
 
-type LoginRegisterNavigationProp = StackNavigationProp<RootStackParamList>;
+type LoginRegisterNavigationProp = StackNavigationProp<ListaParametrosNavegacion>;
 
 const LoginRegister: React.FC = () => {
   // Estado para la conexión a internet
@@ -60,7 +60,6 @@ const LoginRegister: React.FC = () => {
       }
     } catch (error: any) {
       console.log("--- ERROR EN AUTH ---");
-      // ... (tu manejo de errores actual está perfecto)
       const mensaje = error.response?.data?.message || 'Error de autenticación';
       Alert.alert('Error', Array.isArray(mensaje) ? mensaje.join(', ') : mensaje);
     } finally {
@@ -97,7 +96,7 @@ const LoginRegister: React.FC = () => {
           { backgroundColor: isConnected ? '#4CD964' : '#FF3B30' } // Verde si hay, Rojo si no
         ]} />
         <Text style={styles.statusText}>
-          {isConnected ? 'En línea' : 'Sin conexión'}
+          {isConnected ? 'Conectado' : 'Desconectado'}
         </Text>
       </View>
 

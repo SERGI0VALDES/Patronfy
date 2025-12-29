@@ -1,146 +1,56 @@
-// components/PatternVisualizer.tsx
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import Svg, { Path, G, Text as SvgText } from 'react-native-svg';
-import { PatternPiece } from '../utils/patternGenerator';
+import Svg, { Path, G } from 'react-native-svg';
 
 interface PatternVisualizerProps {
-  piece: PatternPiece;
+  piece: {
+    d: string;
+    nombre: string;
+  } | null;
   scale?: number;
-  showMeasurements?: boolean;
-  showGrid?: boolean;
 }
 
-const PatternVisualizer: React.FC<PatternVisualizerProps> = ({
-  piece,
-  scale = 0.8,
-  showMeasurements = true,
-  showGrid = true
-}) => {
-  const { width, height } = piece.boundingBox;
-  
-  // Tamaño del contenedor basado en el scale
-  const containerWidth = width * scale + 40;
-  const containerHeight = height * scale + 40;
+const PatternVisualizer: React.FC<PatternVisualizerProps> = ({ piece, scale = 1 }) => {
+  if (!piece || !piece.d) return null;
 
-  // Generar el path data para SVG
-  const pathData = generatePathData(piece.paths);
-
+  // Estimamos el tamaño de la pieza para el viewBox
+  // Una playera de hombre rara vez mide más de 60cm de ancho (600px) y 90cm de alto (900px)
+  // Le damos un margen (padding) de 50px
   return (
-    <View style={[styles.container, { width: containerWidth, height: containerHeight }]}>
+    <View style={styles.container}>
       <Svg 
-        width={containerWidth} 
-        height={containerHeight}
-        viewBox={`0 0 ${width + 20} ${height + 20}`}
+        width="100%" 
+        height="100%" 
+        viewBox="-50 -50 700 1000" // El -50 permite ver las líneas que tocan el borde
+        preserveAspectRatio="xMidYMid meet"
       >
-        {/* Grid de fondo */}
-        {showGrid && <Grid width={width} height={height} />}
-        
-        {/* Patrón principal */}
-        <G>
-          <Path
-            d={pathData}
-            fill="none"
-            stroke="#007AFF"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        {/* Cuadrícula de fondo opcional para referencia */}
+        <G opacity="0.1">
+          {[...Array(10)].map((_, i) => (
+            <Path key={i} d={`M ${i * 100} 0 L ${i * 100} 1000`} stroke="white" strokeWidth="1" />
+          ))}
         </G>
 
-        {/* Medidas */}
-        {showMeasurements && (
-          <>
-            <SvgText 
-              x={width / 2} 
-              y={height + 15} 
-              fill="#CCCCCC" 
-              fontSize="12" 
-              textAnchor="middle"
-            >
-              {Math.round(width)}cm
-            </SvgText>
-            <SvgText 
-              x={-10} 
-              y={height / 2} 
-              fill="#CCCCCC" 
-              fontSize="12" 
-              textAnchor="middle"
-              
-            >
-              {Math.round(height)}cm
-            </SvgText>
-          </>
-        )}
+        <Path
+          d={piece.d}
+          fill="rgba(0, 122, 255, 0.2)"
+          stroke="#007AFF"
+          strokeWidth="3"
+          strokeLinejoin="round"
+        />
       </Svg>
     </View>
   );
 };
 
-// Componente Grid simplificado
-const Grid: React.FC<{ width: number; height: number }> = ({ width, height }) => {
-  const gridLines = [];
-  const gridSize = 10; // Cada 10cm
-
-  // Líneas verticales
-  for (let x = 0; x <= width; x += gridSize) {
-    gridLines.push(
-      <Path
-        key={`v-${x}`}
-        d={`M ${x} 0 L ${x} ${height}`}
-        stroke="#333333"
-        strokeWidth="0.5"
-        strokeDasharray="1,1"
-      />
-    );
-  }
-
-  // Líneas horizontales
-  for (let y = 0; y <= height; y += gridSize) {
-    gridLines.push(
-      <Path
-        key={`h-${y}`}
-        d={`M 0 ${y} L ${width} ${y}`}
-        stroke="#333333"
-        strokeWidth="0.5"
-        strokeDasharray="1,1"
-      />
-    );
-  }
-
-  return <>{gridLines}</>;
-};
-
-// Función para generar path data
-const generatePathData = (paths: any[]): string => {
-  let pathData = '';
-  
-  paths.forEach((point, index) => {
-    if (point.type === 'move') {
-      pathData += `M ${point.x} ${point.y} `;
-    } else if (point.type === 'line' || point.type === 'curve') {
-      pathData += `L ${point.x} ${point.y} `;
-    }
-  });
-  
-  // Cerrar el path si no está cerrado
-  if (paths.length > 2) {
-    pathData += 'Z';
-  }
-  
-  return pathData;
-};
-
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#2a2a2a',
+    width: '100%',
+    height: 400, // Dale una altura fija para que el SVG tenga referencia
+    backgroundColor: '#252525',
     borderRadius: 8,
-    padding: 10,
-    alignSelf: 'center',
-    marginVertical: 10,
-    borderWidth: 1,
-    borderColor: '#444444',
-  },
+    overflow: 'hidden'
+  }
 });
 
 export default PatternVisualizer;

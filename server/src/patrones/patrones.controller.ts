@@ -10,14 +10,22 @@ export class PatronesController {
 
   // Ruta protegida
   @UseGuards(JwtAuthGuard)
-  @Post()
-  async crear(@Request() req, @Body() createPatronDto: CreatePatronDto) {
+@Post()
+async crear(@Request() req, @Body() createPatronDto: CreatePatronDto) {
+  // 1. Corregimos el log para usar 'id' que es lo que viene del Token
+  console.log('--- INTENTO DE CREAR PATRÓN ---');
+  console.log('ID del Usuario logueado:', req.user.id); 
+  console.log('Datos que envió el celular:', createPatronDto);
 
-    console.log('Usuario en request:', req.user);
-    // El usuarioId se extrae del token JWT (seguridad total)
-    const usuarioId = req.user.id; 
-    return this.patronesService.crear(usuarioId, createPatronDto);
+  const usuarioId = req.user.id; 
+  
+  try {
+    return await this.patronesService.crear(usuarioId, createPatronDto);
+  } catch (error) {
+    console.log('Error en el servicio al crear:', error.message);
+    throw error;
   }
+}
 
   // Ruta protegida para obtener patrones del usuario logueado
   @UseGuards(JwtAuthGuard)

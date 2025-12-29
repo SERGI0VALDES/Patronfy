@@ -1,53 +1,69 @@
-// utils/storage.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GeneratedPattern } from './patternGenerator';
+import { PatronGuardado } from '../types/navigation';
 
-const PATTERNS_KEY = 'saved_patterns';
+// Usamos el mismo nombre que tienes en Biblioteca para consistencia
+const LLAVE_PATRONES = '@biblioteca_cache';
 
-export interface SavedPattern extends GeneratedPattern {
-  id: string;
-  name: string;
-  createdAt: string;
-  clientName?: string;
-}
-
-export const savePatternToLibrary = async (pattern: GeneratedPattern, name: string, clientName?: string): Promise<void> => {
+/**
+ * Guarda un patrón nuevo en el almacenamiento local del teléfono.
+ */
+export const guardarPatronLocal = async (nuevoPatron: PatronGuardado): Promise<void> => {
   try {
-    const savedPattern: SavedPattern = {
-      ...pattern,
-      id: Date.now().toString(),
-      name,
-      createdAt: new Date().toISOString(),
-      clientName
-    };
-
-    const existingPatterns = await getSavedPatterns();
-    const updatedPatterns = [...existingPatterns, savedPattern];
+    const patronesExistentes = await obtenerPatronesLocales();
     
-    await AsyncStorage.setItem(PATTERNS_KEY, JSON.stringify(updatedPatterns));
+    // Verificamos si el patrón ya existe para no duplicarlo (por ID)
+    const existe = patronesExistentes.find(p => p.id === nuevoPatron.id);
+    let patronesActualizados;
+
+    if (existe) {
+      patronesActualizados = patronesExistentes.map(p => 
+        p.id === nuevoPatron.id ? nuevoPatron : p
+      );
+    } else {
+      patronesActualizados = [nuevoPatron, ...patronesExistentes];
+    }
+    
+    await AsyncStorage.setItem(LLAVE_PATRONES, JSON.stringify(patronesActualizados));
   } catch (error) {
-    console.error('Error saving pattern:', error);
-    throw new Error('No se pudo guardar el patrón');
+    console.error('Error al guardar localmente:', error);
+    throw new Error('No se pudo guardar el patrón en el dispositivo');
   }
 };
 
-export const getSavedPatterns = async (): Promise<SavedPattern[]> => {
+/**
+ * Obtiene la lista de todos los patrones guardados en el teléfono.
+ */
+export const obtenerPatronesLocales = async (): Promise<PatronGuardado[]> => {
   try {
-    const patternsJson = await AsyncStorage.getItem(PATTERNS_KEY);
-    return patternsJson ? JSON.parse(patternsJson) : [];
+    const patronesJson = await AsyncStorage.getItem(LLAVE_PATRONES);
+    return patronesJson ? JSON.parse(patronesJson) : [];
   } catch (error) {
-    console.error('Error loading patterns:', error);
+    console.error('Error al cargar patrones locales:', error);
     return [];
   }
 };
 
-export const deletePattern = async (patternId: string): Promise<void> => {
+/**
+ * Elimina un patrón por su ID del almacenamiento local.
+ */
+export const eliminarPatronLocal = async (idPatron: string): Promise<void> => {
   try {
-    const patterns = await getSavedPatterns();
-    const updatedPatterns = patterns.filter(pattern => pattern.id !== patternId);
-    await AsyncStorage.setItem(PATTERNS_KEY, JSON.stringify(updatedPatterns));
+    const patrones = await obtenerPatronesLocales();
+    const patronesActualizados = patrones.filter(p => p.id !== idPatron);
+    await AsyncStorage.setItem(LLAVE_PATRONES, JSON.stringify(patronesActualizados));
   } catch (error) {
-    console.error('Error deleting pattern:', error);
-    throw new Error('No se pudo eliminar el patrón');
+    console.error('Error al eliminar patrón local:', error);
+    throw new Error('No se pudo eliminar el patrón del dispositivo');
+  }
+};
+
+/**
+ * (Opcional) Limpia toda la biblioteca local
+ */
+export const limpiarBibliotecaLocal = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(LLAVE_PATRONES);
+  } catch (error) {
+    console.error('Error al limpiar biblioteca:', error);
   }
 };
