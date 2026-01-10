@@ -5,9 +5,10 @@ import { PatronesService } from './patrones/patrones.service';
 import { AuthModule } from './auth/auth.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { PatronesModule } from './patrones/patrones.module';
+import { ClientesModule } from './clientes/clientes.module';
 
 @Module({
-  imports: [AuthModule, UsuariosModule, PatronesModule], // Importamos los módulos necesarios
+  imports: [AuthModule, UsuariosModule, PatronesModule, ClientesModule], // Importamos los módulos necesarios
   controllers: [PatronesController], // Agregamos el controlador
   providers: [PrismaServicio, PatronesService], // Agregamos el servicio
 })

@@ -5,9 +5,9 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
-import { RootStackParamList } from '../../types/navigation';
+import { ListaParametrosNavegacion } from '../../types/navigation'; 
 
-type CameraScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CameraScreen'>;
+type CameraScreenNavigationProp = StackNavigationProp<ListaParametrosNavegacion, 'CameraScreen'>;
 
 const CameraScreen: React.FC = () => {
   const navigation = useNavigation<CameraScreenNavigationProp>();
@@ -67,17 +67,9 @@ const CameraScreen: React.FC = () => {
 
   const savePicture = () => {
     if (photo) {
-      // Aquí podrías guardar la foto en el perfil del cliente
-      Alert.alert(
-        'Foto Guardada',
-        'La foto se ha guardado en el perfil del cliente',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('PerfilCliente', { photoUri: photo })
-          }
-        ]
-      );
+      // Simplemente navegamos de regreso pasando el parámetro
+      // Esto NO reinicia la pantalla anterior, solo le inyecta el nuevo param
+      navigation.navigate('PerfilCliente', { photoUri: photo });
     }
   };
 

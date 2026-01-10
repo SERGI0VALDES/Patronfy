@@ -16,15 +16,40 @@ model Usuario {
   correo           String    @unique
   clave            String
   nombre           String?
-  patrones         Patron[]  // Relación: Un usuario puede tener muchos patrones
   fechaCreacion    DateTime  @default(now())
+  patrones         Patron[]  // Relación: Un usuario puede tener muchos patrones
+  clientes         Cliente[]
+}
+
+model Cliente {
+  id             String   @id @default(uuid())
+  nombre         String?
+  correo         String   @unique
+  telefono       String   @unique
+  notas          String?
+  photoUri       String?  // Aquí guardaremos la ruta del archivo en el servidor
+  totalPatrones  String?  @default("0")
+  fechaCreacion  DateTime @default(now())
+
+  // Relacion con la tabla Usuario
+  usuario        Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId      String
+
+  // Un cliente puede tener varios patrones
+  patrones      Patron[]
 }
 
 model Patron {
+
   id                 String   @id @default(uuid())
   id_local           String   @unique
+
   nombre             String
   categoria          String   // Ej: "Caballero", "Dama"
+
+  // En lugar de solo el nombre, usamos la relación
+  cliente            Cliente? @relation(fields: [clienteId], references: [id])
+  clienteId       String?
   
   // --- NUEVOS CAMPOS ---
   nombreCliente      String?  // "Sergio", "Altima"

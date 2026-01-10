@@ -19,10 +19,24 @@ export class PatronesService {
     });
   }
 
+  async actualizar(id: string, dto: Partial<CreatePatronDto>) {
+    return this.prisma.patron.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async eliminar(id: string) {
+    return this.prisma.patron.delete({
+      where: { id },
+    });
+  }
+  
   async obtenerPorUsuario(usuarioId: string) {
     return this.prisma.patron.findMany({
       where: { usuarioId },
       orderBy: { fechaCreacion: 'desc' },
     });
   }
+
 }

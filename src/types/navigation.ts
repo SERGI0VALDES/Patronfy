@@ -53,10 +53,10 @@ export type ListaParametrosNavegacion = {
     patronGuardado?: PatronGuardado;
   };
 
-  PerfilCliente: undefined;
+  PerfilCliente?: { photoUri?: string, clienteId?: string };
   LoginRegister: undefined;
   SeleccionEntrada: undefined; 
-  CameraScreen: undefined;
+  CameraScreen: { comingFrom: string; clienteId?: string };
   MisClientes: undefined;
   LogoutAnimation: undefined;
 };

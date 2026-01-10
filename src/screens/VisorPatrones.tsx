@@ -1,3 +1,4 @@
+// src\screens\VisorPatrones.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, ScrollView, 
@@ -75,33 +76,33 @@ const VisorPatrones: React.FC = () => {
   }
 
   try {
-    // Definimos tipoPrendaFinal para que no de error ts(2552)
-    // Buscamos en los params de la ruta, o en el patrón guardado, o usamos un default
     const tipoPrendaFinal = tipoPrenda || patronGuardado?.tipoPrenda || 'playera_hombre';
-    
-    // Definimos la categoría basada en el tipo de prenda
     const categoriaCalculada = tipoPrendaFinal.includes('hombre') ? 'Caballero' : 'Dama';
 
-    const datosParaGuardar: PatronGuardado = {
-      id: patronGuardado?.id || Crypto.randomUUID(),
-      nombre: nombrePatron.trim(), 
+    // Generamos el ID una sola vez para que sea consistente
+    const idUnico = patronGuardado?.id || Crypto.randomUUID();
+
+    const datosParaEnviar = {
+      id_local: idUnico, // <--- EL SERVIDOR ESPERA "id_local"
+      nombre: nombrePatron.trim(),
       nombreCliente: nombreCliente.trim() || 'Sin nombre',
-      tipoPrenda: tipoPrendaFinal, 
-      categoria: categoriaCalculada, // <--- Ahora sí la reconoce
+      tipoPrenda: tipoPrendaFinal,
+      categoria: categoriaCalculada,
       piezas: generatedPattern.piezas,
       instrucciones: generatedPattern.instrucciones || [],
-      fechaCreacion: new Date().toISOString(),
-      estiloPrenda: estiloPrenda || patronGuardado?.estiloPrenda || {},
-      totalTela: generatedPattern.totalTela || 1.5,
+      // Asegúrate de que totalTela sea número, no string
+      totalTela: parseFloat(generatedPattern.totalTela) || 1.5, 
       dificultad: generatedPattern.dificultad || 'Media',
-      medidas: medidas || patronGuardado?.medidas
+      medidas: medidas || patronGuardado?.medidas,
+      estiloPrenda: estiloPrenda || patronGuardado?.estiloPrenda || {},
     };
 
-    // 1. Guardar local
-    await guardarPatronLocal(datosParaGuardar);
+    // 1. Guardar local (Aquí puedes seguir usando tu interfaz PatronGuardado)
+    await guardarPatronLocal({ ...datosParaEnviar, id: idUnico } as any);
 
     // 2. Enviar al servidor
-    const response = await api.post('/patrones', datosParaGuardar);
+    console.log("Enviando a la nube:", datosParaEnviar);
+    const response = await api.post('/patrones', datosParaEnviar);
 
     if (response.status === 201 || response.status === 200) {
       setSaveModalVisible(false);
@@ -110,9 +111,9 @@ const VisorPatrones: React.FC = () => {
       ]);
     }
   } catch (error: any) {
-    console.error('Error al guardar:', error);
+    console.error('Error al guardar:', error.response?.data || error.message);
     setSaveModalVisible(false);
-    Alert.alert('Guardado Local', 'Se guardó en el dispositivo, pero la nube falló.');
+    Alert.alert('Guardado Local', 'Se guardó en el dispositivo, pero el servidor lo rechazó.');
     navigation.navigate('Biblioteca');
   }
 };
@@ -205,7 +206,7 @@ const VisorPatrones: React.FC = () => {
         {/* Botones de Acción */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity style={styles.saveButton} onPress={() => setSaveModalVisible(true)}>
-            <Text style={styles.saveButtonText}>💾 Guardar en Nube</Text>
+            <Text style={styles.saveButtonText}>Guardar Patrón</Text>
           </TouchableOpacity>
 
           <View style={styles.row}>

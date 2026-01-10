@@ -1,10 +1,11 @@
 // src/api/axios.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from './apiConfig';
 
 const api = axios.create({
    // Red: Casa
-    baseURL: 'http://192.168.1.74:3000',
+    baseURL: BASE_URL,
    // Red: Casa centro
    // baseURL: 'http://192.168.100.52:3000',
    // Red: trabajo
